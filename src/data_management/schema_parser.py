@@ -1,0 +1,1 @@
+# Interpreta archivos .txt tipo CREATE TABLE y genera esquemas de tablas

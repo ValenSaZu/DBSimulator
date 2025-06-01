@@ -1,0 +1,1 @@
+# Convierte registros a formato binario de longitud fija y viceversa

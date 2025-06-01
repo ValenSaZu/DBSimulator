@@ -1,0 +1,1 @@
+# Implementación del árbol AVL para indexación eficiente

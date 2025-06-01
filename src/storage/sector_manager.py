@@ -1,0 +1,1 @@
+# Administra la asignación y liberación de sectores

@@ -1,0 +1,1 @@
+# Implementa reglas de validación para tipos de datos y restricciones

@@ -1,0 +1,1 @@
+# Simula la estructura física del disco (platos, pistas, sectores)
