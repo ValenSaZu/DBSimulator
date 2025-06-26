@@ -1,1 +1,0 @@
-# Traduce direcciones lógicas a físicas (plato/pista/sector)

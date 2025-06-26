@@ -1,6 +1,9 @@
+from typing import Optional, Any
+
 class Node:
-  def __init__(self, value):
+  def __init__(self, value, sector_address: Optional[int] = None):
     self.value = value
+    self.sector_address = sector_address
     self.left = None
     self.right = None
     self.height = 1
@@ -67,34 +70,50 @@ class AVL:
     return p
 
   # ----------------------------------------------
-  def ins(self, p, x):
+  def ins(self, p, x, sector_address: Optional[int] = None):
     if not p:
-      return Node(x)
+      return Node(x, sector_address)
     if x < p.value:
-      p.left = self.ins(p.left, x)
+      p.left = self.ins(p.left, x, sector_address)
     elif x > p.value:
-      p.right = self.ins(p.right, x)
+      p.right = self.ins(p.right, x, sector_address)
     else:
+      p.sector_address = sector_address
       return p
 
     return self.balance(p)
 
-  def insert(self, x):
-    self.root = self.ins(self.root, x)
+  def insert(self, x, sector_address: Optional[int] = None):
+    self.root = self.ins(self.root, x, sector_address)
+
+  def search(self, x) -> Optional[Node]:
+    # Busca un valor en el árbol AVL
+    return self._search_recursive(self.root, x)
+  
+  def _search_recursive(self, node: Optional[Node], x: Any) -> Optional[Node]:
+    # Búsqueda recursiva en el árbol
+    if node is None or node.value == x:
+      return node
+    
+    if x < node.value:
+      return self._search_recursive(node.left, x)
+    else:
+      return self._search_recursive(node.right, x)
 
   def inorder(self, p):
     if p:
       self.inorder(p.left)
-      print(p.value, end=" ")
+      print(f"{p.value} (sector: {p.sector_address})", end=" ")
       self.inorder(p.right)
-
-def main():
-  t = AVL()
-  t.insert(10)
-  t.insert(30)
-  t.insert(20)
-
-  t.inorder(t.root)
-
-if __name__ == "__main__":
-  main()
+  
+  def get_all_nodes(self) -> list:
+    # Obtiene todos los nodos del árbol en orden
+    nodes = []
+    self._inorder_collect(self.root, nodes)
+    return nodes
+  
+  def _inorder_collect(self, node: Optional[Node], nodes: list):
+    if node:
+      self._inorder_collect(node.left, nodes)
+      nodes.append(node)
+      self._inorder_collect(node.right, nodes)

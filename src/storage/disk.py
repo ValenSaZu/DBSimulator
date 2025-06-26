@@ -1,13 +1,14 @@
 # Simula la estructura física del disco (platos, pistas, sectores)
 
 import os
+import pickle
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 import struct
 
 @dataclass
 class DiskGeometry:
-    """Estructura que define la geometría del disco virtual"""
+    # Estructura que define la geometría del disco virtual
     platters: int      # Número de platos
     tracks: int        # Pistas por superficie
     sectors: int       # Sectores por pista
@@ -15,19 +16,12 @@ class DiskGeometry:
     
     @property
     def surfaces(self):
-        """Siempre 2 superficies por plato"""
+        # Siempre 2 superficies por plato
         return 2
 
 class Disk:
     def __init__(self, geometry: DiskGeometry, filename: str = "data/virtual_disk.bin"):
-        """
-        Inicializa el disco virtual con la geometría especificada
-        
-        Args:
-            geometry (DiskGeometry): Configuración de la geometría
-            filename (str, optional): Ruta del archivo que simulará el almacenamiento físico. 
-                                    Por defecto es "data/virtual_disk.bin"
-        """
+        # Inicializa el disco virtual con la geometría especificada
         self.geometry = geometry
         self.filename = filename
         self.sector_map = {}
@@ -35,7 +29,9 @@ class Disk:
         self.sector_size = geometry.sector_size
         self.total_capacity = self.total_sectors * self.sector_size
         
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        dirpath = os.path.dirname(filename)
+        if dirpath:
+            os.makedirs(dirpath, exist_ok=True)
         
         if not os.path.exists(self.filename):
             self._initialize_disk()
@@ -43,23 +39,32 @@ class Disk:
             self._load_sector_map()
     
     def _initialize_disk(self):
-        """Crea un nuevo archivo de disco con todos los sectores inicializados a cero como libres"""
+        # Crea un nuevo archivo de disco con todos los sectores inicializados a cero como libres
         with open(self.filename, 'wb') as f:
             f.write(b'\x00' * self.total_capacity)
         
         self.sector_map = {i: False for i in range(self.total_sectors)}
         self._save_sector_map()
     
+    def _save_sector_map(self):
+        # Guarda el mapa de sectores en un archivo separado
+        map_filename = self.filename + ".map"
+        with open(map_filename, 'wb') as f:
+            pickle.dump(self.sector_map, f)
+    
+    def _load_sector_map(self):
+        # Carga el mapa de sectores desde archivo
+        map_filename = self.filename + ".map"
+        if os.path.exists(map_filename):
+            with open(map_filename, 'rb') as f:
+                self.sector_map = pickle.load(f)
+        else:
+            # Si no existe el mapa, inicializar todos como libres
+            self.sector_map = {i: False for i in range(self.total_sectors)}
+            self._save_sector_map()
+    
     def _get_physical_location(self, sector_num: int) -> Dict[str, int]:
-        """
-        Convierte un número de sector lógico en coordenadas físicas (CHS - Cylinder-Head-Sector)
-
-        Args:
-            sector_num (int): Número de sector lógico a convertir (0-based)
-        
-        Returns:
-            Dict[str, int]: Diccionario con las coordenadas físicas:
-        """
+        # Convierte un número de sector lógico en coordenadas físicas (CHS - Cylinder-Head-Sector)
         if sector_num >= self.total_sectors:
             raise ValueError("Número de sector fuera de rango")
         
@@ -84,19 +89,8 @@ class Disk:
             'sector': sector
         }
     
-    def find_free_sectors(self, num_sectors: int = 1) -> List[int]:
-        """
-        Encuentra sectores libres contiguos en el disco
-        
-        Args:
-            num_sectors (int, optional): Número de sectores contiguos necesarios. 
-                                        Por defecto es 1.
-        
-        Returns:
-            List[int]: Lista con los números de sector iniciales de cada bloque encontrado,
-                     o None si no hay suficiente espacio contiguo.
-                     La lista contiene rangos consecutivos como [inicio, inicio+1, ..., inicio+n-1]
-        """
+    def find_free_sectors(self, num_sectors: int = 1) -> Optional[List[int]]:
+        # Encuentra sectores libres secuenciales en el disco
         consecutive_free = 0
         start_sector = None
         
@@ -106,7 +100,7 @@ class Disk:
                     start_sector = sector
                 consecutive_free += 1
                 
-                if consecutive_free >= num_sectors:
+                if consecutive_free >= num_sectors and start_sector is not None:
                     return list(range(start_sector, start_sector + num_sectors))
             else:
                 consecutive_free = 0
@@ -114,23 +108,7 @@ class Disk:
         return None
     
     def get_disk_status(self) -> Dict:
-        """
-        Devuelve estadísticas detalladas del disco
-        
-        Returns:
-            Dict: Diccionario con las siguientes métricas:
-                - total_sectors: Número total de sectores en el disco
-                - used_sectors: Sectores actualmente en uso
-                - free_sectors: Sectores libres
-                - total_capacity: Capacidad total en bytes
-                - used_space: Espacio usado en bytes
-                - free_space: Espacio libre en bytes
-                - sector_size: Tamaño de cada sector en bytes
-                - platters: Número de platos físicos
-                - tracks_per_surface: Pistas por superficie
-                - sectors_per_track: Sectores por pista
-                - surfaces_per_platter: Superficies por plato (siempre 2)
-        """
+        # Devuelve estadísticas detalladas del disco
         used_sectors = sum(1 for occupied in self.sector_map.values() if occupied)
         free_sectors = self.total_sectors - used_sectors
         
