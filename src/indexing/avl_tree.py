@@ -1,12 +1,12 @@
 from typing import Optional, Any
 
 class Node:
-  def __init__(self, value, sector_address: Optional[int] = None):
-    self.value = value
-    self.sector_address = sector_address
-    self.left = None
-    self.right = None
-    self.height = 1
+    def __init__(self, value, address: Optional[tuple] = None):
+        self.value = value
+        self.address = address  # (sector, offset)
+        self.left = None
+        self.right = None
+        self.height = 1
 
 class AVL:
   def __init__(self):
@@ -70,21 +70,21 @@ class AVL:
     return p
 
   # ----------------------------------------------
-  def ins(self, p, x, sector_address: Optional[int] = None):
+  def ins(self, p, x, address: Optional[tuple] = None):
     if not p:
-      return Node(x, sector_address)
+      return Node(x, address)
     if x < p.value:
-      p.left = self.ins(p.left, x, sector_address)
+      p.left = self.ins(p.left, x, address)
     elif x > p.value:
-      p.right = self.ins(p.right, x, sector_address)
+      p.right = self.ins(p.right, x, address)
     else:
-      p.sector_address = sector_address
+      p.address = address
       return p
 
     return self.balance(p)
 
-  def insert(self, x, sector_address: Optional[int] = None):
-    self.root = self.ins(self.root, x, sector_address)
+  def insert(self, x, address: Optional[tuple] = None):
+    self.root = self.ins(self.root, x, address)
 
   def search(self, x) -> Optional[Node]:
     # Busca un valor en el árbol AVL
@@ -103,7 +103,7 @@ class AVL:
   def inorder(self, p):
     if p:
       self.inorder(p.left)
-      print(f"{p.value} (sector: {p.sector_address})", end=" ")
+      print(f"{p.value} (address: {p.address})", end=" ")
       self.inorder(p.right)
   
   def get_all_nodes(self) -> list:
@@ -117,3 +117,16 @@ class AVL:
       self._inorder_collect(node.left, nodes)
       nodes.append(node)
       self._inorder_collect(node.right, nodes)
+
+  def from_records(self, records: list):
+    # Inserta múltiples registros en el árbol AVL
+    for record in records:
+      sector = record.get('sector')
+      offset = record.get('offset')
+      primary_key = record[self.schema['primary_key']]
+      self.insert(primary_key, (sector, offset))
+  
+  def get_data_from_node(self, node: Node):
+    sector_address, offset = node.address
+    data = self.sector_manager.read_record(sector_address, offset)
+    return data

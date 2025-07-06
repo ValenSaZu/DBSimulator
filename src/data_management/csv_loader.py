@@ -27,7 +27,7 @@ class CSVLoader:
                 # Limpiar espacios en blanco de claves y valores
                 cleaned_row = {}
                 for key, value in row.items():
-                    cleaned_key = (key or '').strip().strip('"').strip("'")
+                    cleaned_key = (key or '').strip().strip('"').strip("'").lower()  # <-- minúsculas
                     if value is None:
                         cleaned_value = ''
                     else:

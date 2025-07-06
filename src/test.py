@@ -56,7 +56,7 @@ def test_avl():
         avl.insert(7, 300)
         
         node = avl.search(5)
-        if node and node.sector_address == 100:
+        if node and node.address == 100:
             print("✓ Árbol AVL funciona correctamente")
             return True
         else:
@@ -166,4 +166,4 @@ def main():
         print("✗ Algunas pruebas fallaron")
 
 if __name__ == "__main__":
-    main() 
+    main()

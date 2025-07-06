@@ -319,17 +319,10 @@ class DiskSimulatorInterface:
             records_written = 0
             for record in validated_data:
                 serialized_record = self.serializer.serialize_record(record, self.schema)
-                
-                sectors_needed = (len(serialized_record) + self.disk.sector_size - 1) // self.disk.sector_size
-                
-                free_sectors = self.sector_manager.allocate_sectors(sectors_needed)
-                if not free_sectors:
-                    raise Exception("No hay suficiente espacio en el disco")
-                
-                self.sector_manager.write_data(serialized_record, free_sectors[0])
-                
+                sector, offset = self.sector_manager.write_record(serialized_record)
+
                 primary_key = record[self.schema['primary_key']]
-                self.avl_tree.insert(primary_key, free_sectors[0])
+                self.avl_tree.insert(primary_key, (sector, offset))
                 
                 records_written += 1
                 
@@ -369,17 +362,15 @@ class DiskSimulatorInterface:
                 self.search_results_text.insert(tk.END, f"No se encontró el registro con ID: {search_id}")
                 return
             
-            sector_address = node.sector_address
-            
-            data = self.sector_manager.read_data(sector_address)
+            sector_address, offset = node.address
+            data = self.sector_manager.read_record(sector_address, offset)
             
             record = self.serializer.deserialize_record(data, self.schema)
             
             self.search_results_text.delete(1.0, tk.END)
             self.search_results_text.insert(tk.END, f"Registro encontrado:\n\n")
             self.search_results_text.insert(tk.END, f"ID: {search_id}\n")
-            self.search_results_text.insert(tk.END, f"Ubicación física: Sector {sector_address}\n\n")
-            
+            self.search_results_text.insert(tk.END, f"Ubicación física: Sector {sector_address}, Offset {offset}\n\n")
             physical_location = self.disk._get_physical_location(sector_address)
             self.search_results_text.insert(tk.END, f"Coordenadas físicas:\n")
             self.search_results_text.insert(tk.END, f"  Plato: {physical_location['platter']}\n")
@@ -438,8 +429,8 @@ class DiskSimulatorInterface:
     
     def run(self):
         # Ejecuta la interfaz de usuario
+        # Ejecuta la interfaz de usuario
         self.root.mainloop()
-
 if __name__ == "__main__":
-    app = DiskSimulatorInterface()
-    app.run() 
+    app = DiskSimulatorInterface()    
+    app.run()
