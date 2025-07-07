@@ -74,6 +74,7 @@ class SectorManager:
                 f.seek(sector * self.disk.sector_size + offset)
                 f.write(header)
                 f.write(fragment_data)
+            self.disk.sector_map[sector] = True  # <-- Marca el sector como usado
             self.disk._save_sector_map()
             if first_sector is None:
                 first_sector = sector

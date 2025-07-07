@@ -160,8 +160,14 @@ class DiskSimulatorInterface:
         
         self.search_id_var = tk.StringVar()
         
-        ttk.Label(search_frame, text="ID del registro:").pack(anchor='w')
+        ttk.Label(search_frame, text="Valor a buscar:").pack(anchor='w')
         ttk.Entry(search_frame, textvariable=self.search_id_var, width=20).pack(anchor='w', pady=5)
+        
+        self.search_field_var = tk.StringVar()
+        ttk.Label(search_frame, text="Campo:").pack(anchor='w')
+        self.search_field_combo = ttk.Combobox(search_frame, textvariable=self.search_field_var, width=20, state="readonly")
+        self.search_field_combo.pack(anchor='w', pady=5)
+        
         
         ttk.Button(search_frame, text="Buscar", 
                   command=self.search_record).pack(pady=10)
@@ -271,6 +277,11 @@ class DiskSimulatorInterface:
             
             messagebox.showinfo("Éxito", "Esquema cargado exitosamente")
             
+            if self.schema:
+                field_names = [field['name'] for field in self.schema['fields']]
+                self.search_field_combo['values'] = field_names
+                self.search_field_combo.current(0)
+            
         except Exception as e:
             messagebox.showerror("Error", f"Error al cargar esquema: {str(e)}")
     
@@ -337,53 +348,77 @@ class DiskSimulatorInterface:
             self.progress_text.insert(tk.END, f"\nError: {str(e)}\n")
     
     def search_record(self):
-        # Busca un registro por ID
+        # Búsqueda por cualquier campo, mostrando todas las coincidencias y la ubicación física exacta
         if not self.disk or not self.schema:
             messagebox.showerror("Error", "Debe tener un disco y esquema cargados")
             return
-            
-        search_id = self.search_id_var.get()
-        if not search_id:
-            messagebox.showerror("Error", "Ingrese un ID para buscar")
+
+        search_value = self.search_id_var.get()
+        search_field = self.search_field_var.get()
+        if not search_value or not search_field:
+            messagebox.showerror("Error", "Ingrese un valor y seleccione un campo para buscar")
             return
-            
+
         try:
-            primary_key_type = next(f['type'] for f in self.schema['fields'] 
-                                  if f['name'] == self.schema['primary_key'])
-            
-            if 'INTEGER' in primary_key_type:
-                search_id = int(search_id)
-            elif 'DECIMAL' in primary_key_type:
-                search_id = float(search_id)
-            
-            node = self.avl_tree.search(search_id)
-            if not node:
-                self.search_results_text.delete(1.0, tk.END)
-                self.search_results_text.insert(tk.END, f"No se encontró el registro con ID: {search_id}")
-                return
-            
-            sector_address, offset = node.address
-            data = self.sector_manager.read_record(sector_address, offset)
-            
-            record = self.serializer.deserialize_record(data, self.schema)
-            
+            # Determina el tipo del campo buscado
+            field_info = next(f for f in self.schema['fields'] if f['name'] == search_field)
+            field_type = field_info['type']
+
+            # Convierte el valor de búsqueda al tipo correcto
+            if 'INTEGER' in field_type:
+                try:
+                    search_value_cast = int(search_value)
+                except Exception:
+                    search_value_cast = search_value
+            elif 'DECIMAL' in field_type:
+                try:
+                    search_value_cast = float(search_value)
+                except Exception:
+                    search_value_cast = search_value
+            else:
+                search_value_cast = search_value.strip().lower()
+
+            found = []
+            for node in self.avl_tree.get_all_nodes():
+                sector_address, offset = node.address
+                data = self.sector_manager.read_record(sector_address, offset)
+                record = self.serializer.deserialize_record(data, self.schema)
+                value = record.get(search_field)
+
+                match = False
+                if 'INTEGER' in field_type or 'DECIMAL' in field_type:
+                    try:
+                        if value == search_value_cast:
+                            match = True
+                    except Exception:
+                        pass
+                else:
+                    if value and search_value_cast in str(value).lower():
+                        match = True
+
+                if match:
+                    found.append((node.value, sector_address, offset, record))
+
             self.search_results_text.delete(1.0, tk.END)
-            self.search_results_text.insert(tk.END, f"Registro encontrado:\n\n")
-            self.search_results_text.insert(tk.END, f"ID: {search_id}\n")
-            self.search_results_text.insert(tk.END, f"Ubicación física: Sector {sector_address}, Offset {offset}\n\n")
-            physical_location = self.disk._get_physical_location(sector_address)
-            self.search_results_text.insert(tk.END, f"Coordenadas físicas:\n")
-            self.search_results_text.insert(tk.END, f"  Plato: {physical_location['platter']}\n")
-            self.search_results_text.insert(tk.END, f"  Superficie: {physical_location['surface']}\n")
-            self.search_results_text.insert(tk.END, f"  Pista: {physical_location['track']}\n")
-            self.search_results_text.insert(tk.END, f"  Sector: {physical_location['sector']}\n\n")
-            
-            self.search_results_text.insert(tk.END, f"Datos del registro:\n")
-            for field_name, value in record.items():
-                self.search_results_text.insert(tk.END, f"  {field_name}: {value}\n")
-                
-        except ValueError as e:
-            messagebox.showerror("Error", f"ID inválido: {str(e)}")
+            if not found:
+                self.search_results_text.insert(tk.END, f"No se encontró ningún registro con {search_field} = {search_value}\n")
+                return
+
+            for idx, (pk, sector_address, offset, record) in enumerate(found, 1):
+                self.search_results_text.insert(tk.END, f"Registro {idx} encontrado:\n\n")
+                self.search_results_text.insert(tk.END, f"Clave primaria: {pk}\n")
+                self.search_results_text.insert(tk.END, f"Ubicación física: Sector lógico {sector_address}, Offset {offset}\n")
+                physical_location = self.disk._get_physical_location(sector_address)
+                self.search_results_text.insert(tk.END, f"Coordenadas físicas:\n")
+                self.search_results_text.insert(tk.END, f"  Plato: {physical_location['platter']}\n")
+                self.search_results_text.insert(tk.END, f"  Superficie: {physical_location['surface']}\n")
+                self.search_results_text.insert(tk.END, f"  Pista: {physical_location['track']}\n")
+                self.search_results_text.insert(tk.END, f"  Sector: {physical_location['sector']}\n\n")
+                self.search_results_text.insert(tk.END, f"Datos del registro:\n")
+                for field_name, value in record.items():
+                    self.search_results_text.insert(tk.END, f"  {field_name}: {value}\n")
+                self.search_results_text.insert(tk.END, "\n" + "-"*40 + "\n\n")
+
         except Exception as e:
             messagebox.showerror("Error", f"Error en la búsqueda: {str(e)}")
     
@@ -415,8 +450,8 @@ class DiskSimulatorInterface:
             self.status_text.insert(tk.END, f"Uso:\n")
             self.status_text.insert(tk.END, f"  Sectores usados: {status['used_sectors']:,}\n")
             self.status_text.insert(tk.END, f"  Sectores libres: {status['free_sectors']:,}\n")
-            self.status_text.insert(tk.END, f"  Espacio usado: {status['used_space'] / (1024*1024):.2f} MB\n")
-            self.status_text.insert(tk.END, f"  Espacio libre: {status['free_space'] / (1024*1024):.2f} MB\n")
+            self.status_text.insert(tk.END, f"  Espacio usado: {status['used_space']} bytes ({status['used_space'] / (1024*1024):.2f} MB)\n") #cambios
+            self.status_text.insert(tk.END, f"  Espacio libre: {status['free_space']} bytes ({status['free_space'] / (1024*1024):.2f} MB)\n")
             
             if self.schema:
                 self.status_text.insert(tk.END, f"\nEsquema cargado:\n")
