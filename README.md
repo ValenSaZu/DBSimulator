@@ -76,7 +76,7 @@ CREATE TABLE PRODUCTO(
 
 - **Simulación de disco físico**: Platos, pistas, sectores
 - **Serialización binaria**: Registros de longitud fija
-- **Indexación AVL**: Búsquedas eficientes por ID
+- **Indexación AVL**: Búsquedas eficientes por los atributos de la tabla
 - **Validación de datos**: Verificación de tipos y restricciones
 - **Interfaz gráfica**: Fácil de usar con tkinter
 - **Persistencia**: Los datos se guardan en archivos binarios
