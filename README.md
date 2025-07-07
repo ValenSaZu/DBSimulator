@@ -114,4 +114,4 @@ DBSimulator/
 
 ## Autor
 
-DBSimulator Team - Base de Datos II
+Valentina Salazar, Gino Diaz y Diego Astorga - Base de Datos II
