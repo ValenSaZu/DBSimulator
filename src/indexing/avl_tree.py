@@ -3,7 +3,9 @@ from typing import Optional, Any
 class Node:
     def __init__(self, value, address: Optional[tuple] = None):
         self.value = value
-        self.address = address  # (sector, offset)
+        self.addresses = []
+        if address:
+            self.addresses.append(address)
         self.left = None
         self.right = None
         self.height = 1
@@ -78,9 +80,9 @@ class AVL:
     elif x > p.value:
       p.right = self.ins(p.right, x, address)
     else:
-      p.address = address
+      if address and address not in p.addresses:
+          p.addresses.append(address)
       return p
-
     return self.balance(p)
 
   def insert(self, x, address: Optional[tuple] = None):
@@ -103,7 +105,7 @@ class AVL:
   def inorder(self, p):
     if p:
       self.inorder(p.left)
-      print(f"{p.value} (address: {p.address})", end=" ")
+      print(f"{p.value} (address: {p.addresses})", end=" ")
       self.inorder(p.right)
   
   def get_all_nodes(self) -> list:
@@ -118,15 +120,14 @@ class AVL:
       nodes.append(node)
       self._inorder_collect(node.right, nodes)
 
-  def from_records(self, records: list):
+  def from_records(self, records: list, primary_key: str):
     # Inserta múltiples registros en el árbol AVL
     for record in records:
       sector = record.get('sector')
       offset = record.get('offset')
-      primary_key = record[self.schema['primary_key']]
-      self.insert(primary_key, (sector, offset))
+      key = record[primary_key]
+      self.insert(key, (sector, offset))
   
   def get_data_from_node(self, node: Node):
-    sector_address, offset = node.address
-    data = self.sector_manager.read_record(sector_address, offset)
-    return data
+    # Esta función ya no debe acceder a sector_manager, solo retorna la primera dirección
+    return node.addresses[0] if node.addresses else None

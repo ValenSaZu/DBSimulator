@@ -28,6 +28,7 @@ class DiskSimulatorInterface:
         self.avl_tree = AVL()
         self.serializer: Optional[RecordSerializer] = None
         self.sector_manager: Optional[SectorManager] = None
+        self.secondary_indexes = {}  # Diccionario de AVLs por campo
         
         self.setup_ui()
         
@@ -281,6 +282,9 @@ class DiskSimulatorInterface:
                 field_names = [field['name'] for field in self.schema['fields']]
                 self.search_field_combo['values'] = field_names
                 self.search_field_combo.current(0)
+                # Crear un AVL por cada campo
+                for field in field_names:
+                    self.secondary_indexes[field] = AVL()
             
         except Exception as e:
             messagebox.showerror("Error", f"Error al cargar esquema: {str(e)}")
@@ -331,10 +335,11 @@ class DiskSimulatorInterface:
             for record in validated_data:
                 serialized_record = self.serializer.serialize_record(record, self.schema)
                 sector, offset = self.sector_manager.write_record(serialized_record)
-
                 primary_key = record[self.schema['primary_key']]
                 self.avl_tree.insert(primary_key, (sector, offset))
-                
+                # Insertar en los índices secundarios
+                for field, avl in self.secondary_indexes.items():
+                    avl.insert(record[field], (sector, offset))
                 records_written += 1
                 
                 if records_written % 100 == 0:
@@ -360,11 +365,8 @@ class DiskSimulatorInterface:
             return
 
         try:
-            # Determina el tipo del campo buscado
             field_info = next(f for f in self.schema['fields'] if f['name'] == search_field)
             field_type = field_info['type']
-
-            # Convierte el valor de búsqueda al tipo correcto
             if 'INTEGER' in field_type:
                 try:
                     search_value_cast = int(search_value)
@@ -377,36 +379,16 @@ class DiskSimulatorInterface:
                     search_value_cast = search_value
             else:
                 search_value_cast = search_value.strip().lower()
-
-            found = []
-            for node in self.avl_tree.get_all_nodes():
-                sector_address, offset = node.address
-                data = self.sector_manager.read_record(sector_address, offset)
-                record = self.serializer.deserialize_record(data, self.schema)
-                value = record.get(search_field)
-
-                match = False
-                if 'INTEGER' in field_type or 'DECIMAL' in field_type:
-                    try:
-                        if value == search_value_cast:
-                            match = True
-                    except Exception:
-                        pass
-                else:
-                    if value and search_value_cast in str(value).lower():
-                        match = True
-
-                if match:
-                    found.append((node.value, sector_address, offset, record))
-
+            avl = self.secondary_indexes.get(search_field)
+            node = avl.search(search_value_cast) if avl else None
             self.search_results_text.delete(1.0, tk.END)
-            if not found:
+            if not node or not node.addresses:
                 self.search_results_text.insert(tk.END, f"No se encontró ningún registro con {search_field} = {search_value}\n")
                 return
-
-            for idx, (pk, sector_address, offset, record) in enumerate(found, 1):
+            for idx, (sector_address, offset) in enumerate(node.addresses, 1):
+                data = self.sector_manager.read_record(sector_address, offset)
+                record = self.serializer.deserialize_record(data, self.schema)
                 self.search_results_text.insert(tk.END, f"Registro {idx} encontrado:\n\n")
-                self.search_results_text.insert(tk.END, f"Clave primaria: {pk}\n")
                 self.search_results_text.insert(tk.END, f"Ubicación física: Sector lógico {sector_address}, Offset {offset}\n")
                 physical_location = self.disk._get_physical_location(sector_address)
                 self.search_results_text.insert(tk.END, f"Coordenadas físicas:\n")
@@ -463,7 +445,6 @@ class DiskSimulatorInterface:
             self.status_text.insert(tk.END, f"Error al obtener estado: {str(e)}")
     
     def run(self):
-        # Ejecuta la interfaz de usuario
         # Ejecuta la interfaz de usuario
         self.root.mainloop()
 if __name__ == "__main__":
