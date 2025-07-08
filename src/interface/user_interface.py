@@ -152,7 +152,7 @@ class DiskSimulatorInterface:
         frame = ttk.Frame(notebook)
         notebook.add(frame, text="Búsquedas")
         
-        title_label = ttk.Label(frame, text="Búsqueda por ID", 
+        title_label = ttk.Label(frame, text="Búsqueda", 
                                font=("Arial", 14, "bold"))
         title_label.pack(pady=20)
         
@@ -339,7 +339,13 @@ class DiskSimulatorInterface:
                 self.avl_tree.insert(primary_key, (sector, offset))
                 # Insertar en los índices secundarios
                 for field, avl in self.secondary_indexes.items():
-                    avl.insert(record[field], (sector, offset))
+                    # Para campos de tipo string, convertir a minúsculas para consistencia en búsquedas
+                    field_info = next(f for f in self.schema['fields'] if f['name'] == field)
+                    if 'VARCHAR' in field_info['type'] or 'CHAR' in field_info['type'] or 'TEXT' in field_info['type']:
+                        value_to_insert = str(record[field]).lower() if record[field] else ""
+                    else:
+                        value_to_insert = record[field]
+                    avl.insert(value_to_insert, (sector, offset))
                 records_written += 1
                 
                 if records_written % 100 == 0:
@@ -378,12 +384,21 @@ class DiskSimulatorInterface:
                 except Exception:
                     search_value_cast = search_value
             else:
+                # Para strings, convertir a minúsculas para consistencia con los datos insertados
                 search_value_cast = search_value.strip().lower()
             avl = self.secondary_indexes.get(search_field)
             node = avl.search(search_value_cast) if avl else None
             self.search_results_text.delete(1.0, tk.END)
             if not node or not node.addresses:
                 self.search_results_text.insert(tk.END, f"No se encontró ningún registro con {search_field} = {search_value}\n")
+                self.search_results_text.insert(tk.END, f"Valor buscado (convertido): {search_value_cast}\n")
+                self.search_results_text.insert(tk.END, f"Tipo de campo: {field_type}\n")
+                # Mostrar algunos valores disponibles en el índice para depuración
+                if avl and avl.root:
+                    self.search_results_text.insert(tk.END, f"Valores disponibles en el índice (primeros 5):\n")
+                    nodes = avl.get_all_nodes()[:5]
+                    for node in nodes:
+                        self.search_results_text.insert(tk.END, f"  - {node.value}\n")
                 return
             for idx, (sector_address, offset) in enumerate(node.addresses, 1):
                 data = self.sector_manager.read_record(sector_address, offset)
