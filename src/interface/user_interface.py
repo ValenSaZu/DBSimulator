@@ -383,6 +383,14 @@ class DiskSimulatorInterface:
                     search_value_cast = float(search_value)
                 except Exception:
                     search_value_cast = search_value
+            elif 'BOOLEAN' in field_type or 'BOOL' in field_type:
+                value_lower = search_value.strip().lower()
+                if value_lower in ('true', '1', 'yes'):
+                    search_value_cast = True
+                elif value_lower in ('false', '0', 'no'):
+                    search_value_cast = False
+                else:
+                    search_value_cast = search_value
             else:
                 # Para strings, convertir a minúsculas para consistencia con los datos insertados
                 search_value_cast = search_value.strip().lower()
